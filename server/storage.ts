@@ -80,6 +80,38 @@ export interface IStorage {
   
   // Leaderboard operations
   getLeaderboard(projectId?: string, limit?: number): Promise<User[]>;
+  
+  // Advanced Task Management - Jira-like features
+  // Comments
+  getTaskComments(taskId: string): Promise<TaskComment[]>;
+  getTaskComment(id: string): Promise<TaskComment | undefined>;
+  createTaskComment(comment: { taskId: string; userId: string; content: string }): Promise<TaskComment>;
+  updateTaskComment(id: string, comment: { content: string }): Promise<TaskComment>;
+  deleteTaskComment(id: string): Promise<void>;
+  
+  // Time tracking
+  createTimeLog(timeLog: { taskId: string; userId: string; timeSpent: number; description?: string; date: Date }): Promise<any>;
+  getTaskTimeLogs(taskId: string): Promise<any[]>;
+  
+  // Advanced search
+  searchTasks(params: {
+    query?: string;
+    assigneeId?: string;
+    reporterId?: string;
+    status?: string;
+    priority?: string;
+    type?: string;
+    projectId?: string;
+    limit: number;
+    offset: number;
+  }): Promise<Task[]>;
+  
+  // Board management
+  getProjectBoards(projectId: string): Promise<Board[]>;
+  
+  // Task dependencies
+  createTaskDependency(dependency: { taskId: string; dependsOnTaskId: string }): Promise<any>;
+  getTaskDependencies(taskId: string): Promise<any[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -303,10 +335,13 @@ export class DatabaseStorage implements IStorage {
 
   // Activity operations
   async getActivities(projectId?: string, limit = 50): Promise<Activity[]> {
-    let query = db.select().from(activities);
+    const query = db.select().from(activities);
     
     if (projectId) {
-      query = query.where(eq(activities.projectId, projectId));
+      return await query
+        .where(eq(activities.projectId, projectId))
+        .orderBy(desc(activities.createdAt))
+        .limit(limit);
     }
     
     return await query
@@ -356,6 +391,221 @@ export class DatabaseStorage implements IStorage {
       .from(users)
       .orderBy(desc(users.points))
       .limit(limit);
+  }
+
+  // Advanced Task Management - Jira-like features implementation
+  
+  // Comments
+  async getTaskComments(taskId: string): Promise<TaskComment[]> {
+    return await db
+      .select()
+      .from(taskComments)
+      .where(eq(taskComments.taskId, taskId))
+      .orderBy(taskComments.createdAt);
+  }
+
+  async getTaskComment(id: string): Promise<TaskComment | undefined> {
+    const [comment] = await db.select().from(taskComments).where(eq(taskComments.id, id));
+    return comment;
+  }
+
+  async createTaskComment(comment: { taskId: string; userId: string; content: string }): Promise<TaskComment> {
+    const [newComment] = await db
+      .insert(taskComments)
+      .values(comment)
+      .returning();
+    return newComment;
+  }
+
+  async updateTaskComment(id: string, comment: { content: string }): Promise<TaskComment> {
+    const [updatedComment] = await db
+      .update(taskComments)
+      .set({ content: comment.content, updatedAt: new Date() })
+      .where(eq(taskComments.id, id))
+      .returning();
+    return updatedComment;
+  }
+
+  async deleteTaskComment(id: string): Promise<void> {
+    await db.delete(taskComments).where(eq(taskComments.id, id));
+  }
+
+  // Time tracking (simplified implementation)
+  async createTimeLog(timeLog: { taskId: string; userId: string; timeSpent: number; description?: string; date: Date }): Promise<any> {
+    // For now, we'll add this to activities table as a workaround
+    const [activity] = await db
+      .insert(activities)
+      .values({
+        userId: timeLog.userId,
+        type: 'time_logged',
+        description: `Logged ${timeLog.timeSpent} hours${timeLog.description ? ': ' + timeLog.description : ''}`,
+        taskId: timeLog.taskId,
+        metadata: { 
+          timeSpent: timeLog.timeSpent, 
+          description: timeLog.description,
+          date: timeLog.date.toISOString() 
+        }
+      })
+      .returning();
+    return { 
+      id: activity.id, 
+      taskId: timeLog.taskId, 
+      userId: timeLog.userId, 
+      timeSpent: timeLog.timeSpent,
+      description: timeLog.description,
+      date: timeLog.date,
+      createdAt: activity.createdAt 
+    };
+  }
+
+  async getTaskTimeLogs(taskId: string): Promise<any[]> {
+    const logs = await db
+      .select()
+      .from(activities)
+      .where(
+        and(
+          eq(activities.taskId, taskId),
+          eq(activities.type, 'time_logged')
+        )
+      )
+      .orderBy(desc(activities.createdAt));
+    
+    return logs.map(log => ({
+      id: log.id,
+      taskId: log.taskId,
+      userId: log.userId,
+      timeSpent: log.metadata?.timeSpent || 0,
+      description: log.metadata?.description,
+      date: log.metadata?.date ? new Date(log.metadata.date) : log.createdAt,
+      createdAt: log.createdAt
+    }));
+  }
+
+  // Advanced search
+  async searchTasks(params: {
+    query?: string;
+    assigneeId?: string;
+    reporterId?: string;
+    status?: string;
+    priority?: string;
+    type?: string;
+    projectId?: string;
+    limit: number;
+    offset: number;
+  }): Promise<Task[]> {
+    let query = db.select().from(tasks);
+    const conditions = [];
+
+    if (params.query) {
+      conditions.push(
+        or(
+          like(tasks.title, `%${params.query}%`),
+          like(tasks.description, `%${params.query}%`)
+        )
+      );
+    }
+
+    if (params.assigneeId) {
+      conditions.push(eq(tasks.assigneeId, params.assigneeId));
+    }
+
+    if (params.reporterId) {
+      conditions.push(eq(tasks.reporterId, params.reporterId));
+    }
+
+    if (params.status) {
+      conditions.push(eq(tasks.status, params.status));
+    }
+
+    if (params.priority) {
+      conditions.push(eq(tasks.priority, params.priority));
+    }
+
+    if (params.type) {
+      conditions.push(eq(tasks.type, params.type));
+    }
+
+    if (params.projectId) {
+      // Need to join with boards to filter by project
+      query = db
+        .select({
+          id: tasks.id,
+          title: tasks.title,
+          description: tasks.description,
+          status: tasks.status,
+          priority: tasks.priority,
+          type: tasks.type,
+          assigneeId: tasks.assigneeId,
+          reporterId: tasks.reporterId,
+          boardId: tasks.boardId,
+          rewardPoints: tasks.rewardPoints,
+          estimationHours: tasks.estimationHours,
+          sdgLink: tasks.sdgLink,
+          labels: tasks.labels,
+          createdAt: tasks.createdAt,
+          updatedAt: tasks.updatedAt,
+        })
+        .from(tasks)
+        .innerJoin(boards, eq(tasks.boardId, boards.id))
+        .where(
+          and(
+            eq(boards.projectId, params.projectId),
+            ...conditions
+          )
+        );
+    } else if (conditions.length > 0) {
+      query = query.where(and(...conditions));
+    }
+
+    return await query
+      .orderBy(desc(tasks.updatedAt))
+      .limit(params.limit)
+      .offset(params.offset);
+  }
+
+  // Board management
+  async getProjectBoards(projectId: string): Promise<Board[]> {
+    return await this.getBoardsByProject(projectId);
+  }
+
+  // Task dependencies (simplified implementation using activities)
+  async createTaskDependency(dependency: { taskId: string; dependsOnTaskId: string }): Promise<any> {
+    const [activity] = await db
+      .insert(activities)
+      .values({
+        userId: '', // This should be filled by the calling code
+        type: 'dependency_created',
+        description: `Task dependency created`,
+        taskId: dependency.taskId,
+        metadata: { dependsOnTaskId: dependency.dependsOnTaskId }
+      })
+      .returning();
+    
+    return {
+      id: activity.id,
+      taskId: dependency.taskId,
+      dependsOnTaskId: dependency.dependsOnTaskId,
+      createdAt: activity.createdAt
+    };
+  }
+
+  async getTaskDependencies(taskId: string): Promise<any[]> {
+    const deps = await db
+      .select()
+      .from(activities)
+      .where(
+        and(
+          eq(activities.taskId, taskId),
+          eq(activities.type, 'dependency_created')
+        )
+      );
+    
+    return deps.map(dep => ({
+      id: dep.id,
+      taskId: dep.taskId,
+      dependsOnTaskId: dep.metadata?.dependsOnTaskId,
+      createdAt: dep.createdAt
+    }));
   }
 }
 

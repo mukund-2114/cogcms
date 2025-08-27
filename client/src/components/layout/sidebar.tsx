@@ -51,20 +51,20 @@ export default function Sidebar() {
   const { user } = useAuth();
   const [location] = useLocation();
 
-  const { data: myTasks } = useQuery({
+  const { data: myTasks = [] } = useQuery({
     queryKey: ["/api/tasks/my-tasks"],
     retry: false,
   });
 
-  const { data: projects } = useQuery({
+  const { data: projects = [] } = useQuery({
     queryKey: ["/api/projects"],
     retry: false,
   });
 
-  const taskCount = myTasks?.length || 0;
-  const projectCount = projects?.length || 0;
+  const taskCount = myTasks.length;
+  const projectCount = projects.length;
 
-  const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
+  const isAdmin = user && (user.role === 'admin' || user.role === 'super_admin');
 
   return (
     <div className="w-64 bg-card border-r border-border flex flex-col">
@@ -92,10 +92,10 @@ export default function Sidebar() {
           </Avatar>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium text-foreground truncate" data-testid="text-user-name">
-              {user?.firstName} {user?.lastName}
+              {user?.firstName || ''} {user?.lastName || ''}
             </p>
             <p className="text-xs text-muted-foreground capitalize" data-testid="text-user-role">
-              {user?.role?.replace('_', ' ')}
+              {user?.role?.replace('_', ' ') || 'member'}
             </p>
           </div>
         </div>
@@ -105,7 +105,7 @@ export default function Sidebar() {
           <div className="flex items-center space-x-2">
             <Star className="text-yellow-500 w-4 h-4" />
             <span className="text-sm font-medium" data-testid="text-user-points">
-              {user?.points?.toLocaleString() || 0} pts
+              {(user?.points || 0).toLocaleString()} pts
             </span>
           </div>
           <Badge variant="secondary" className="bg-hero-blue text-white">

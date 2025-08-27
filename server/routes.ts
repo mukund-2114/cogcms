@@ -356,6 +356,303 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Advanced Task Management Routes (Jira-like functionality)
+
+  // Task Comments
+  app.get('/api/tasks/:taskId/comments', isAuthenticated, async (req, res) => {
+    try {
+      const comments = await storage.getTaskComments(req.params.taskId);
+      res.json(comments);
+    } catch (error) {
+      console.error("Error fetching task comments:", error);
+      res.status(500).json({ message: "Failed to fetch comments" });
+    }
+  });
+
+  app.post('/api/tasks/:taskId/comments', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { content } = req.body;
+      
+      if (!content?.trim()) {
+        return res.status(400).json({ message: "Comment content is required" });
+      }
+
+      const comment = await storage.createTaskComment({
+        taskId: req.params.taskId,
+        userId,
+        content: content.trim()
+      });
+
+      // Log activity
+      await storage.createActivity({
+        userId,
+        type: 'comment_added',
+        description: `Added comment to task`,
+        taskId: req.params.taskId,
+        metadata: { commentId: comment.id }
+      });
+
+      res.json(comment);
+    } catch (error) {
+      console.error("Error creating comment:", error);
+      res.status(500).json({ message: "Failed to create comment" });
+    }
+  });
+
+  app.put('/api/comments/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { content } = req.body;
+      const comment = await storage.getTaskComment(req.params.id);
+      
+      if (!comment) {
+        return res.status(404).json({ message: "Comment not found" });
+      }
+      
+      if (comment.userId !== userId) {
+        return res.status(403).json({ message: "Not authorized to edit this comment" });
+      }
+
+      const updatedComment = await storage.updateTaskComment(req.params.id, { content });
+      res.json(updatedComment);
+    } catch (error) {
+      console.error("Error updating comment:", error);
+      res.status(500).json({ message: "Failed to update comment" });
+    }
+  });
+
+  app.delete('/api/comments/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const comment = await storage.getTaskComment(req.params.id);
+      
+      if (!comment) {
+        return res.status(404).json({ message: "Comment not found" });
+      }
+      
+      if (comment.userId !== userId) {
+        return res.status(403).json({ message: "Not authorized to delete this comment" });
+      }
+
+      await storage.deleteTaskComment(req.params.id);
+      res.json({ message: "Comment deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting comment:", error);
+      res.status(500).json({ message: "Failed to delete comment" });
+    }
+  });
+
+  // Time Tracking
+  app.post('/api/tasks/:taskId/time-logs', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { timeSpent, description, date } = req.body;
+      
+      if (!timeSpent || timeSpent <= 0) {
+        return res.status(400).json({ message: "Valid time spent is required" });
+      }
+      
+      const timeLog = await storage.createTimeLog({
+        taskId: req.params.taskId,
+        userId,
+        timeSpent: parseFloat(timeSpent),
+        description,
+        date: date ? new Date(date) : new Date()
+      });
+
+      res.json(timeLog);
+    } catch (error) {
+      console.error("Error creating time log:", error);
+      res.status(500).json({ message: "Failed to log time" });
+    }
+  });
+
+  app.get('/api/tasks/:taskId/time-logs', isAuthenticated, async (req, res) => {
+    try {
+      const timeLogs = await storage.getTaskTimeLogs(req.params.taskId);
+      res.json(timeLogs);
+    } catch (error) {
+      console.error("Error fetching time logs:", error);
+      res.status(500).json({ message: "Failed to fetch time logs" });
+    }
+  });
+
+  // Task Assignment
+  app.put('/api/tasks/:id/assign', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { assigneeId } = req.body;
+      
+      const task = await storage.updateTask(req.params.id, { assigneeId });
+      
+      if (assigneeId) {
+        // Log activity
+        await storage.createActivity({
+          userId,
+          type: 'task_assigned',
+          description: `Assigned task "${task.title}" to user`,
+          taskId: task.id,
+          metadata: { taskTitle: task.title, assigneeId }
+        });
+      }
+
+      res.json(task);
+    } catch (error) {
+      console.error("Error assigning task:", error);
+      res.status(500).json({ message: "Failed to assign task" });
+    }
+  });
+
+  // Advanced Search and Filtering
+  app.get('/api/tasks/search', isAuthenticated, async (req: any, res) => {
+    try {
+      const {
+        query,
+        assigneeId,
+        reporterId,
+        status,
+        priority,
+        type,
+        projectId,
+        limit = 50,
+        offset = 0
+      } = req.query;
+
+      const tasks = await storage.searchTasks({
+        query,
+        assigneeId,
+        reporterId,
+        status,
+        priority,
+        type,
+        projectId,
+        limit: parseInt(limit),
+        offset: parseInt(offset)
+      });
+
+      res.json(tasks);
+    } catch (error) {
+      console.error("Error searching tasks:", error);
+      res.status(500).json({ message: "Failed to search tasks" });
+    }
+  });
+
+  // Task Status Transitions
+  app.put('/api/tasks/:id/transition', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { status, comment } = req.body;
+      
+      const oldTask = await storage.getTask(req.params.id);
+      const task = await storage.updateTask(req.params.id, { status });
+      
+      // Log status transition
+      await storage.createActivity({
+        userId,
+        type: 'status_changed',
+        description: `Changed task status from ${oldTask?.status} to ${status}`,
+        taskId: task.id,
+        metadata: { 
+          oldStatus: oldTask?.status, 
+          newStatus: status,
+          comment: comment || null
+        }
+      });
+
+      // Award points if task completed
+      if (oldTask?.status !== 'done' && status === 'done' && task.assigneeId) {
+        const assignee = await storage.getUser(task.assigneeId);
+        if (assignee) {
+          const newPoints = assignee.points + task.rewardPoints;
+          await storage.updateUserPoints(task.assigneeId, newPoints);
+
+          await storage.createActivity({
+            userId: task.assigneeId,
+            type: 'task_completed',
+            description: `Completed task "${task.title}" and earned ${task.rewardPoints} points`,
+            taskId: task.id,
+            metadata: { taskTitle: task.title, pointsEarned: task.rewardPoints }
+          });
+        }
+      }
+
+      res.json(task);
+    } catch (error) {
+      console.error("Error transitioning task:", error);
+      res.status(500).json({ message: "Failed to transition task" });
+    }
+  });
+
+  // Task Labels/Tags
+  app.put('/api/tasks/:id/labels', isAuthenticated, async (req: any, res) => {
+    try {
+      const { labels } = req.body;
+      const task = await storage.updateTask(req.params.id, { labels });
+      
+      // Log activity
+      await storage.createActivity({
+        userId: req.user.claims.sub,
+        type: 'labels_updated',
+        description: `Updated task labels`,
+        taskId: task.id,
+        metadata: { labels }
+      });
+
+      res.json(task);
+    } catch (error) {
+      console.error("Error updating task labels:", error);
+      res.status(500).json({ message: "Failed to update labels" });
+    }
+  });
+
+  // Task Dependencies
+  app.post('/api/tasks/:id/dependencies', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { dependsOnTaskId } = req.body;
+      
+      if (!dependsOnTaskId) {
+        return res.status(400).json({ message: "Dependency task ID is required" });
+      }
+      
+      // First update our dependency creation to include userId
+      const dependency = await storage.createTaskDependency({
+        taskId: req.params.id,
+        dependsOnTaskId
+      });
+      
+      res.json(dependency);
+    } catch (error) {
+      console.error("Error creating task dependency:", error);
+      res.status(500).json({ message: "Failed to create dependency" });
+    }
+  });
+
+  app.get('/api/tasks/:id/dependencies', isAuthenticated, async (req, res) => {
+    try {
+      const dependencies = await storage.getTaskDependencies(req.params.id);
+      res.json(dependencies);
+    } catch (error) {
+      console.error("Error fetching task dependencies:", error);
+      res.status(500).json({ message: "Failed to fetch dependencies" });
+    }
+  });
+
+  // Get single task with full details
+  app.get('/api/tasks/:id', isAuthenticated, async (req, res) => {
+    try {
+      const task = await storage.getTask(req.params.id);
+      if (!task) {
+        return res.status(404).json({ message: "Task not found" });
+      }
+      res.json(task);
+    } catch (error) {
+      console.error("Error fetching task:", error);
+      res.status(500).json({ message: "Failed to fetch task" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

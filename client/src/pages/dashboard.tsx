@@ -29,17 +29,17 @@ export default function Dashboard() {
     }
   }, [isAuthenticated, isLoading, toast]);
 
-  const { data: projects, isLoading: projectsLoading } = useQuery({
+  const { data: projects = [], isLoading: projectsLoading } = useQuery({
     queryKey: ["/api/projects"],
     retry: false,
   });
 
-  const { data: myTasks, isLoading: tasksLoading } = useQuery({
+  const { data: myTasks = [], isLoading: tasksLoading } = useQuery({
     queryKey: ["/api/tasks/my-tasks"],
     retry: false,
   });
 
-  const { data: activities, isLoading: activitiesLoading } = useQuery({
+  const { data: activities = [], isLoading: activitiesLoading } = useQuery({
     queryKey: ["/api/activities"],
     retry: false,
   });
@@ -56,11 +56,11 @@ export default function Dashboard() {
   }
 
   // Get the first project and its main board for demo
-  const currentProject = projects?.[0];
+  const currentProject = projects[0];
   const currentBoard = currentProject ? { id: 'main-board', projectId: currentProject.id } : null;
 
-  const completedTasks = myTasks?.filter(task => task.status === 'done')?.length || 0;
-  const inProgressTasks = myTasks?.filter(task => task.status === 'in_progress')?.length || 0;
+  const completedTasks = myTasks.filter(task => task.status === 'done').length;
+  const inProgressTasks = myTasks.filter(task => task.status === 'in_progress').length;
 
   return (
     <div className="flex h-screen bg-background">
@@ -87,7 +87,7 @@ export default function Dashboard() {
                   </CardHeader>
                   <CardContent>
                     <div className="text-2xl font-bold" data-testid="text-total-projects">
-                      {projects?.length || 0}
+                      {projects.length}
                     </div>
                     <p className="text-xs text-muted-foreground">
                       Active SDG projects
@@ -159,7 +159,7 @@ export default function Dashboard() {
                         </div>
                       ))}
                     </div>
-                  ) : activities?.length ? (
+                  ) : activities.length ? (
                     <div className="space-y-4">
                       {activities.slice(0, 5).map((activity, index) => (
                         <div key={activity.id} className="flex items-center space-x-3">
@@ -171,7 +171,7 @@ export default function Dashboard() {
                               {activity.description}
                             </p>
                             <p className="text-xs text-muted-foreground">
-                              {new Date(activity.createdAt!).toRelative?.() || 'Recently'}
+                              {new Date(activity.createdAt!).toLocaleDateString()}
                             </p>
                           </div>
                         </div>

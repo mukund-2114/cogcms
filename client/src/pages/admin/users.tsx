@@ -37,7 +37,7 @@ export default function AdminUsers() {
       return;
     }
     
-    if (!isLoading && user && !['admin', 'super_admin'].includes(user.role)) {
+    if (!isLoading && user && user.role && !['admin', 'super_admin'].includes(user.role)) {
       toast({
         title: "Access Denied",
         description: "You don't have permission to access this page",
@@ -47,7 +47,7 @@ export default function AdminUsers() {
     }
   }, [isAuthenticated, isLoading, user, toast]);
 
-  const { data: users, isLoading: usersLoading } = useQuery({
+  const { data: users = [], isLoading: usersLoading } = useQuery({
     queryKey: ["/api/admin/users"],
     retry: false,
   });
@@ -94,7 +94,7 @@ export default function AdminUsers() {
     );
   }
 
-  if (user && !['admin', 'super_admin'].includes(user.role)) {
+  if (user && user.role && !['admin', 'super_admin'].includes(user.role)) {
     return (
       <div className="flex h-screen bg-background">
         <Sidebar />
@@ -115,7 +115,7 @@ export default function AdminUsers() {
     );
   }
 
-  const filteredUsers = users?.filter((u: User) => {
+  const filteredUsers = users.filter((u: User) => {
     const matchesSearch = !searchQuery || 
       `${u.firstName} ${u.lastName}`.toLowerCase().includes(searchQuery.toLowerCase()) ||
       u.email?.toLowerCase().includes(searchQuery.toLowerCase());
@@ -161,7 +161,7 @@ export default function AdminUsers() {
             <div>
               <h1 className="text-2xl font-bold text-foreground">Users</h1>
               <p className="text-muted-foreground">
-                {filteredUsers?.length || 0} of {users?.length || 0} users
+                {filteredUsers.length} of {users.length} users
               </p>
             </div>
           </div>
@@ -238,7 +238,7 @@ export default function AdminUsers() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredUsers?.map((u: User) => {
+                    {filteredUsers.map((u: User) => {
                       const RoleIcon = roleIcons[u.role as keyof typeof roleIcons] || Users;
                       
                       return (

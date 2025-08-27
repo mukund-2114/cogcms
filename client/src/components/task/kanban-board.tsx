@@ -17,7 +17,7 @@ interface BoardColumn {
 }
 
 export default function KanbanBoard({ boardId }: KanbanBoardProps) {
-  const { data: tasks, isLoading } = useQuery({
+  const { data: tasks = [], isLoading } = useQuery({
     queryKey: ["/api/boards", boardId, "tasks"],
     retry: false,
   });
@@ -54,7 +54,7 @@ export default function KanbanBoard({ boardId }: KanbanBoardProps) {
   ];
 
   // Group tasks by status
-  const tasksByStatus = (tasks || []).reduce((acc: Record<string, Task[]>, task: Task) => {
+  const tasksByStatus = tasks.reduce((acc: Record<string, Task[]>, task: Task) => {
     if (!acc[task.status]) {
       acc[task.status] = [];
     }

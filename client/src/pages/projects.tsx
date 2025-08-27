@@ -37,7 +37,7 @@ export default function Projects() {
     }
   }, [isAuthenticated, isLoading, toast]);
 
-  const { data: projects, isLoading: projectsLoading } = useQuery({
+  const { data: projects = [], isLoading: projectsLoading } = useQuery({
     queryKey: ["/api/projects"],
     retry: false,
   });
@@ -85,9 +85,18 @@ export default function Projects() {
   }
 
   const handleDeleteProject = async (project: Project) => {
-    if (project.ownerId !== user?.id && !['admin', 'super_admin'].includes(user?.role || '')) {
+    if (project.ownerId !== user?.id && !user?.role) {
       toast({
         title: "Error",
+        description: "You don't have permission to delete this project",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    if (project.ownerId !== user?.id && !['admin', 'super_admin'].includes(user.role)) {
+      toast({
+        title: "Error", 
         description: "You don't have permission to delete this project",
         variant: "destructive",
       });
@@ -117,7 +126,7 @@ export default function Projects() {
             <div>
               <h1 className="text-2xl font-bold text-foreground">Projects</h1>
               <p className="text-muted-foreground">
-                {projects?.length || 0} active projects contributing to the SDGs
+                {projects.length} active projects contributing to the SDGs
               </p>
             </div>
             <Button 
@@ -149,7 +158,7 @@ export default function Projects() {
                 </Card>
               ))}
             </div>
-          ) : projects?.length ? (
+          ) : projects.length ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {projects.map((project: Project) => {
                 const sdgs = project.sdgTags || [];

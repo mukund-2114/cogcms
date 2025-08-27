@@ -73,7 +73,7 @@ export default function AdminBadges() {
       return;
     }
     
-    if (!isLoading && user && !['admin', 'super_admin'].includes(user.role)) {
+    if (!isLoading && user && user.role && !['admin', 'super_admin'].includes(user.role)) {
       toast({
         title: "Access Denied",
         description: "You don't have permission to access this page",
@@ -83,7 +83,7 @@ export default function AdminBadges() {
     }
   }, [isAuthenticated, isLoading, user, toast]);
 
-  const { data: badges, isLoading: badgesLoading } = useQuery({
+  const { data: badges = [], isLoading: badgesLoading } = useQuery({
     queryKey: ["/api/badges"],
     retry: false,
   });
@@ -132,7 +132,7 @@ export default function AdminBadges() {
     );
   }
 
-  if (user && !['admin', 'super_admin'].includes(user.role)) {
+  if (user && user.role && !['admin', 'super_admin'].includes(user.role)) {
     return (
       <div className="flex h-screen bg-background">
         <Sidebar />
@@ -173,7 +173,7 @@ export default function AdminBadges() {
             <div>
               <h1 className="text-2xl font-bold text-foreground">Badges</h1>
               <p className="text-muted-foreground">
-                {badges?.length || 0} achievement badges available
+                {badges.length} achievement badges available
               </p>
             </div>
             
@@ -344,7 +344,7 @@ export default function AdminBadges() {
                 </Card>
               ))}
             </div>
-          ) : badges?.length ? (
+          ) : badges.length ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               {badges.map((badge: BadgeType) => {
                 const iconOption = iconOptions.find(opt => opt.value === badge.icon);
