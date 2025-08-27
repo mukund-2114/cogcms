@@ -1,0 +1,117 @@
+Build a multi-tenant CMS and task/issue-tracking platform for the Community of Guardians community that: (1) allows all users to log in and use personal/team project boards like Jira, (2) provides admin role-based user & profile management, (3) awards points/badges to users for task completion and contributions, and (4) visually and thematically matches the Community of Guardians brand and SDG-focused mission. The CMS must integrate with the Community of Guardians existing auth and profile system and be extensible (AI features, reporting, integrations).
+
+Context & brand cues (from your site):
+The Community of Guardians is a social-learning / community platform focused on empowering action for the SDGs; the site emphasizes “Inspiring Action Through real-Superheroes” and uses SDG-aligned content such as the SDG quiz and superhero profiles. Use the site’s tone: educational, action-oriented, community-first, credible. 
+Community of Guardians
++2
+Community of Guardians
++2
+
+1) Goals & non-functional priorities
+
+Primary goal: Replace costly Jira license with a tailored CMS + Kanban/Scrum board feature that every community member can use for SDG projects, plus administrative user management.
+
+Secondary goals: Gamify contributions (points/badges), public dashboards tied to SDG impact, and allow community visibility (public/private projects).
+
+Non-functional: Multi-tenant support, role-based access control (RBAC), scalable (start small + scale horizontally), secure (OWASP top 10), accessible (WCAG AA), GDPR/CCPA-aware.
+
+2) Users & roles (RBAC)
+
+Super Admin — full system control (manage organizations, global settings, view logs).
+
+Admin — manage users, approve/disable accounts, manage global badges/rewards, moderate content.
+
+Project Manager — create projects/boards, assign tasks, configure workflows for their project.
+
+Member / Contributor — create tasks, comment, move tasks, view own profile & rewards.
+
+Guest / Viewer — read-only for public projects (optional).
+
+External Integrations (service account) — API tokens for GitHub, Slack, etc.
+
+Access rules (examples):
+
+Only Admin/Super Admin can edit user roles.
+
+Project Managers + Admins can delete tasks; Members can close/complete tasks they are assigned to.
+
+Only Admins can issue or revoke badges and adjust reward point values.
+
+3) Core features (detailed)
+3.1 Authentication & Profiles
+
+SSO integration with existing Community of Guardians auth (reuse JWT / OAuth endpoints). If unavailable, provide OAuth2 + email verification.
+
+Profile model includes: id, display_name, email, avatar_url, bio, country, sdg_alignment (one or more SDG IDs), points, badges[], joined_at, last_active.
+
+Admin UI for viewing/searching users and editing profile metadata.
+
+3.2 Projects, Boards & Tasks (Jira-like)
+
+Projects: id, name, description, visibility (public/private), sdg_tags[], owner_id.
+
+Boards: multiple per project; support Kanban & Scrum templates; columns = statuses (To do / In Progress / Review / Done).
+
+Tasks (issues): id, title, description (rich text / markdown), type (task/bug/feature/challenge), priority, assignee_id, reporter_id, status, labels[], attachments[], estimation (hours/points), due_date, created_at, updated_at, sdg_link (link to SDG if applicable), reward_points.
+
+Subtasks & dependencies (blocks/blocked_by).
+
+Drag & drop board with real-time updates (WebSockets/Socket.io / Pusher).
+
+3.3 Workflows & Automation
+
+Custom workflows by project (status transitions, required approvers).
+
+Automation rules: e.g., "When task moves to Done => award points to assignee", "When PR closed with closes #TASK => transition task to Done".
+
+Webhooks for external services.
+
+3.4 Gamification / Rewards
+
+Points: numeric schema (points_balance, total_earned) — configurable per project or global.
+
+Badges: grantable badges with metadata id, name, description, icon, criteria (criteria are rules e.g., 10 tasks closed).
+
+Leaderboards: global and project-level leaderboards (filterable by time range).
+
+Milestones: team or SDG milestones that grant badges and team points.
+
+Reward flow: When task marked Done and validated (option: auto-validate or Manager approves), system calculates reward based on task.reward_points or formula (e.g., base reward × complexity multiplier) and updates user profile.
+
+3.5 Activity & Notifications
+
+In-app notifications + email + optional Slack/Discord.
+
+Activity timeline per project and per user.
+
+Digest emails (daily / weekly) summarizing tasks, achievements, and impact metrics.
+
+3.6 Reporting & Impact Metrics
+
+Burndown charts, velocity, cycle time charts.
+
+SDG impact dashboard: percent of tasks linked to SDG by project; total points earned for each SDG.
+
+Export CSV / PDF reports.
+
+3.7 Admin CMS
+
+User management (search, filter, bulk actions).
+
+Role & permission management UI.
+
+Badge & points configuration UI.
+
+Audit logs (who changed roles, who awarded points).
+
+Content moderation (delete posts/attachments).
+
+3.8 Integrations
+
+GitHub/GitLab (close tasks from commits/PRs).
+
+Slack/Discord for notifications.
+
+Google Drive / OneDrive attachments.
+
+Optional AI (OpenAI) for task breakdown, summaries.
