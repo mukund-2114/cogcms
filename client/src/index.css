@@ -1,0 +1,196 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: hsl(210, 40%, 96%);
+  --foreground: hsl(222.2, 84%, 4.9%);
+  --card: hsl(0, 0%, 100%);
+  --card-foreground: hsl(222.2, 84%, 4.9%);
+  --popover: hsl(0, 0%, 100%);
+  --popover-foreground: hsl(222.2, 84%, 4.9%);
+  --primary: hsl(221.2, 83.2%, 53.3%);
+  --primary-foreground: hsl(210, 40%, 98%);
+  --secondary: hsl(210, 40%, 94%);
+  --secondary-foreground: hsl(222.2, 84%, 4.9%);
+  --muted: hsl(210, 40%, 96%);
+  --muted-foreground: hsl(215.4, 16.3%, 46.9%);
+  --accent: hsl(210, 40%, 94%);
+  --accent-foreground: hsl(222.2, 84%, 4.9%);
+  --destructive: hsl(0, 84.2%, 60.2%);
+  --destructive-foreground: hsl(210, 40%, 98%);
+  --border: hsl(214.3, 31.8%, 91.4%);
+  --input: hsl(214.3, 31.8%, 91.4%);
+  --ring: hsl(221.2, 83.2%, 53.3%);
+  --chart-1: hsl(221.2, 83.2%, 53.3%);
+  --chart-2: hsl(158, 64%, 52%);
+  --chart-3: hsl(43, 96%, 56%);
+  --chart-4: hsl(142, 76%, 36%);
+  --chart-5: hsl(0, 86%, 59%);
+  --sidebar: hsl(0, 0%, 100%);
+  --sidebar-foreground: hsl(222.2, 84%, 4.9%);
+  --sidebar-primary: hsl(221.2, 83.2%, 53.3%);
+  --sidebar-primary-foreground: hsl(210, 40%, 98%);
+  --sidebar-accent: hsl(210, 40%, 94%);
+  --sidebar-accent-foreground: hsl(222.2, 84%, 4.9%);
+  --sidebar-border: hsl(214.3, 31.8%, 91.4%);
+  --sidebar-ring: hsl(221.2, 83.2%, 53.3%);
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+  --font-serif: Georgia, serif;
+  --font-mono: Menlo, monospace;
+  --radius: 0.75rem;
+  --shadow-2xs: 0px 2px 0px 0px hsl(221.2, 83.2%, 53.3%, 0.00);
+  --shadow-xs: 0px 2px 0px 0px hsl(221.2, 83.2%, 53.3%, 0.00);
+  --shadow-sm: 0px 2px 0px 0px hsl(221.2, 83.2%, 53.3%, 0.00), 0px 1px 2px -1px hsl(221.2, 83.2%, 53.3%, 0.00);
+  --shadow: 0px 2px 0px 0px hsl(221.2, 83.2%, 53.3%, 0.00), 0px 1px 2px -1px hsl(221.2, 83.2%, 53.3%, 0.00);
+  --shadow-md: 0px 2px 0px 0px hsl(221.2, 83.2%, 53.3%, 0.00), 0px 2px 4px -1px hsl(221.2, 83.2%, 53.3%, 0.00);
+  --shadow-lg: 0px 2px 0px 0px hsl(221.2, 83.2%, 53.3%, 0.00), 0px 4px 6px -1px hsl(221.2, 83.2%, 53.3%, 0.00);
+  --shadow-xl: 0px 2px 0px 0px hsl(221.2, 83.2%, 53.3%, 0.00), 0px 8px 10px -1px hsl(221.2, 83.2%, 53.3%, 0.00);
+  --shadow-2xl: 0px 2px 0px 0px hsl(221.2, 83.2%, 53.3%, 0.00);
+  --tracking-normal: 0em;
+  --spacing: 0.25rem;
+
+  /* Community of Guardians hero-themed colors */
+  --hero-blue: hsl(224, 76%, 48%);
+  --hero-green: hsl(158, 64%, 52%);
+  --hero-gold: hsl(43, 96%, 56%);
+  --hero-purple: hsl(251, 91%, 95%);
+  --sdg-red: hsl(0, 86%, 59%);
+  --sdg-blue: hsl(204, 100%, 59%);
+  --sdg-green: hsl(142, 76%, 36%);
+}
+
+.dark {
+  --background: hsl(0, 0%, 0%);
+  --foreground: hsl(200, 6.6667%, 91.1765%);
+  --card: hsl(228, 9.8039%, 10%);
+  --card-foreground: hsl(0, 0%, 85.0980%);
+  --popover: hsl(0, 0%, 0%);
+  --popover-foreground: hsl(200, 6.6667%, 91.1765%);
+  --primary: hsl(221.2, 83.2%, 53.3%);
+  --primary-foreground: hsl(0, 0%, 100%);
+  --secondary: hsl(195, 15.3846%, 94.9020%);
+  --secondary-foreground: hsl(210, 25%, 7.8431%);
+  --muted: hsl(0, 0%, 9.4118%);
+  --muted-foreground: hsl(210, 3.3898%, 46.2745%);
+  --accent: hsl(205.7143, 70%, 7.8431%);
+  --accent-foreground: hsl(221.2, 83.2%, 53.3%);
+  --destructive: hsl(0, 84.2%, 60.2%);
+  --destructive-foreground: hsl(0, 0%, 100%);
+  --border: hsl(210, 5.2632%, 14.9020%);
+  --input: hsl(207.6923, 27.6596%, 18.4314%);
+  --ring: hsl(221.2, 83.2%, 53.3%);
+  --chart-1: hsl(221.2, 83.2%, 53.3%);
+  --chart-2: hsl(158, 64%, 52%);
+  --chart-3: hsl(43, 96%, 56%);
+  --chart-4: hsl(142, 76%, 36%);
+  --chart-5: hsl(0, 86%, 59%);
+  --sidebar: hsl(228, 9.8039%, 10%);
+  --sidebar-foreground: hsl(0, 0%, 85.0980%);
+  --sidebar-primary: hsl(221.2, 83.2%, 53.3%);
+  --sidebar-primary-foreground: hsl(0, 0%, 100%);
+  --sidebar-accent: hsl(205.7143, 70%, 7.8431%);
+  --sidebar-accent-foreground: hsl(221.2, 83.2%, 53.3%);
+  --sidebar-border: hsl(205.7143, 15.7895%, 26.0784%);
+  --sidebar-ring: hsl(221.2, 83.2%, 53.3%);
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+  --font-serif: Georgia, serif;
+  --font-mono: Menlo, monospace;
+  --radius: 0.75rem;
+  --shadow-2xs: 0px 2px 0px 0px hsl(221.2, 83.2%, 53.3%, 0.00);
+  --shadow-xs: 0px 2px 0px 0px hsl(221.2, 83.2%, 53.3%, 0.00);
+  --shadow-sm: 0px 2px 0px 0px hsl(221.2, 83.2%, 53.3%, 0.00), 0px 1px 2px -1px hsl(221.2, 83.2%, 53.3%, 0.00);
+  --shadow: 0px 2px 0px 0px hsl(221.2, 83.2%, 53.3%, 0.00), 0px 1px 2px -1px hsl(221.2, 83.2%, 53.3%, 0.00);
+  --shadow-md: 0px 2px 0px 0px hsl(221.2, 83.2%, 53.3%, 0.00), 0px 2px 4px -1px hsl(221.2, 83.2%, 53.3%, 0.00);
+  --shadow-lg: 0px 2px 0px 0px hsl(221.2, 83.2%, 53.3%, 0.00), 0px 4px 6px -1px hsl(221.2, 83.2%, 53.3%, 0.00);
+  --shadow-xl: 0px 2px 0px 0px hsl(221.2, 83.2%, 53.3%, 0.00), 0px 8px 10px -1px hsl(221.2, 83.2%, 53.3%, 0.00);
+  --shadow-2xl: 0px 2px 0px 0px hsl(221.2, 83.2%, 53.3%, 0.00);
+
+  /* Community of Guardians hero-themed colors - dark mode adjustments */
+  --hero-blue: hsl(224, 76%, 58%);
+  --hero-green: hsl(158, 64%, 62%);
+  --hero-gold: hsl(43, 96%, 66%);
+  --hero-purple: hsl(251, 91%, 85%);
+  --sdg-red: hsl(0, 86%, 69%);
+  --sdg-blue: hsl(204, 100%, 69%);
+  --sdg-green: hsl(142, 76%, 46%);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply font-sans antialiased bg-background text-foreground;
+  }
+}
+
+@layer utilities {
+  .hero-gradient {
+    background: linear-gradient(135deg, var(--hero-blue) 0%, var(--hero-green) 100%);
+  }
+  
+  .badge-glow {
+    box-shadow: 0 0 20px rgba(251, 191, 36, 0.3);
+  }
+  
+  .task-card {
+    transition: all 0.2s ease;
+  }
+  
+  .task-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+  }
+
+  .sidebar-item:hover {
+    background: linear-gradient(90deg, var(--hero-blue), transparent);
+  }
+
+  .text-hero-blue {
+    color: var(--hero-blue);
+  }
+
+  .text-hero-green {
+    color: var(--hero-green);
+  }
+
+  .text-hero-gold {
+    color: var(--hero-gold);
+  }
+
+  .text-hero-purple {
+    color: var(--hero-purple);
+  }
+
+  .bg-hero-blue {
+    background-color: var(--hero-blue);
+  }
+
+  .bg-hero-green {
+    background-color: var(--hero-green);
+  }
+
+  .bg-hero-gold {
+    background-color: var(--hero-gold);
+  }
+
+  .bg-hero-purple {
+    background-color: var(--hero-purple);
+  }
+
+  .border-hero-blue {
+    border-color: var(--hero-blue);
+  }
+
+  .border-hero-green {
+    border-color: var(--hero-green);
+  }
+
+  .border-hero-gold {
+    border-color: var(--hero-gold);
+  }
+}
