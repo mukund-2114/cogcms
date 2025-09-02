@@ -28,9 +28,14 @@ import { db } from "./db";
 import { eq, desc, and, or, like, inArray } from "drizzle-orm";
 
 export interface IStorage {
-  // User operations (required for Replit Auth)
+  // User operations
   getUser(id: string): Promise<User | undefined>;
+  getUserByEmail(email: string): Promise<User | undefined>;
+  getUserByGoogleId(googleId: string): Promise<User | undefined>;
   upsertUser(user: UpsertUser): Promise<User>;
+  createUser(user: Partial<User>): Promise<User>;
+  createGoogleUser(userData: any): Promise<User>;
+  linkGoogleAccount(userId: string, googleId: string): Promise<User>;
   
   // Project operations
   getProjects(userId: string): Promise<Project[]>;
