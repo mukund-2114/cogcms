@@ -32,13 +32,17 @@ export const taskPriorityEnum = pgEnum('task_priority', ['low', 'medium', 'high'
 export const taskStatusEnum = pgEnum('task_status', ['todo', 'in_progress', 'review', 'done']);
 export const projectVisibilityEnum = pgEnum('project_visibility', ['public', 'private']);
 
-// User storage table (required for Replit Auth)
+// User storage table
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  email: varchar("email").unique(),
+  email: varchar("email").unique().notNull(),
+  password: text("password"), // For local auth - null for Google auth users
   firstName: varchar("first_name"),
   lastName: varchar("last_name"),
   profileImageUrl: varchar("profile_image_url"),
+  googleId: varchar("google_id").unique(), // For Google OAuth
+  authProvider: varchar("auth_provider").default('local').notNull(), // 'local' or 'google'
+  emailVerified: boolean("email_verified").default(false).notNull(),
   role: userRoleEnum("role").default('member').notNull(),
   bio: text("bio"),
   country: varchar("country"),
