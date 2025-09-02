@@ -283,6 +283,8 @@ export const insertActivitySchema = createInsertSchema(activities).omit({
 
 // Types
 export type UpsertUser = z.infer<typeof upsertUserSchema>;
+export type RegisterUser = z.infer<typeof registerUserSchema>;
+export type LoginUser = z.infer<typeof loginUserSchema>;
 export type User = typeof users.$inferSelect;
 export type Project = typeof projects.$inferSelect;
 export type Board = typeof boards.$inferSelect;
