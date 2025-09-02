@@ -141,6 +141,44 @@ export class DatabaseStorage implements IStorage {
     return user;
   }
 
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.email, email));
+    return user;
+  }
+
+  async getUserByGoogleId(googleId: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.googleId, googleId));
+    return user;
+  }
+
+  async createUser(userData: Partial<User>): Promise<User> {
+    const [user] = await db.insert(users).values(userData as any).returning();
+    return user;
+  }
+
+  async createGoogleUser(userData: any): Promise<User> {
+    const [user] = await db.insert(users).values({
+      ...userData,
+      authProvider: 'google',
+      emailVerified: true,
+    }).returning();
+    return user;
+  }
+
+  async linkGoogleAccount(userId: string, googleId: string): Promise<User> {
+    const [user] = await db
+      .update(users)
+      .set({ 
+        googleId,
+        authProvider: 'google',
+        emailVerified: true,
+        updatedAt: new Date()
+      })
+      .where(eq(users.id, userId))
+      .returning();
+    return user;
+  }
+
   // Project operations
   async getProjects(userId: string): Promise<Project[]> {
     return await db
