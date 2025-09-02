@@ -2,86 +2,188 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import session from "express-session";
-import { randomUUID } from "crypto";
-// Simplified auth: create a default user for local dev
-const isAuthenticated = async (req: any, res: any, next: any) => {
-  // Always use a default dev user
-  const defaultUserId = "dev-user-123";
-  
-  // Ensure the default user exists in DB
-  try {
-    let user = await storage.getUser(defaultUserId);
-    if (!user) {
-      user = await storage.upsertUser({
-        id: defaultUserId,
-        email: "dev@local.dev",
-        firstName: "Dev",
-        lastName: "User",
-      });
-    }
-    req.user = { claims: { sub: defaultUserId } };
-    next();
-  } catch (error) {
-    console.error("Error setting up default user:", error);
-    res.status(500).json({ message: "Auth setup failed" });
-  }
-};
+import passport from "passport";
+import { initializeAuth, generateToken, hashPassword, requireAuth, requireRole } from "./auth";
+import { insertProjectSchema, insertBoardSchema, insertTaskSchema, insertBadgeSchema, registerUserSchema, loginUserSchema } from "@shared/schema";
+import { z } from "zod";
 
 const setupAuth = async (app: Express) => {
   const secret = process.env.SESSION_SECRET || "dev_session_secret";
+  
   app.use(
     session({
       secret,
       resave: false,
       saveUninitialized: false,
-    }),
+      cookie: {
+        secure: process.env.NODE_ENV === 'production',
+        httpOnly: true,
+        maxAge: 24 * 60 * 60 * 1000 // 24 hours
+      }
+    })
   );
+
+  // Initialize Passport
+  initializeAuth();
+  app.use(passport.initialize());
+  app.use(passport.session());
 };
-import { insertProjectSchema, insertBoardSchema, insertTaskSchema, insertBadgeSchema } from "@shared/schema";
-import { z } from "zod";
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Auth middleware
+  // Auth middleware setup
   await setupAuth(app);
-  // In local mode, no authentication is enforced.
 
-  // Simplified dev routes - no complex auth needed
-  app.post('/api/login', async (req: any, res) => {
-    res.json({ message: 'Auto-logged in as dev user', userId: 'dev-user-123' });
-  });
-
-  app.post('/api/signup', async (req: any, res) => {
-    res.json({ message: 'Auto-signed up as dev user', userId: 'dev-user-123' });
-  });
-
-  app.post('/api/logout', (req: any, res) => {
-    res.json({ message: 'Logged out' });
-  });
-
-  // Auth routes
-  app.get('/api/auth/user', async (req: any, res) => {
+  // Authentication routes
+  app.post('/api/auth/register', async (req, res) => {
     try {
-      const userId = 'dev-user-123';
-      let user = await storage.getUser(userId);
-      if (!user) {
-        user = await storage.upsertUser({
-          id: userId,
-          email: "dev@local.dev",
-          firstName: "Dev",
-          lastName: "User",
-        });
+      const userData = registerUserSchema.parse(req.body);
+      
+      // Check if user already exists
+      const existingUser = await storage.getUserByEmail(userData.email);
+      if (existingUser) {
+        return res.status(400).json({ message: 'User already exists with this email' });
       }
-      res.json(user);
+
+      // Hash password
+      const hashedPassword = await hashPassword(userData.password);
+
+      // Create user
+      const user = await storage.createUser({
+        email: userData.email,
+        password: hashedPassword,
+        firstName: userData.firstName,
+        lastName: userData.lastName,
+        authProvider: 'local',
+        emailVerified: false,
+      });
+
+      // Generate token
+      const token = generateToken(user);
+
+      // Store token in session
+      req.session.token = token;
+
+      res.json({ 
+        message: 'User registered successfully', 
+        user: { 
+          id: user.id, 
+          email: user.email, 
+          firstName: user.firstName, 
+          lastName: user.lastName,
+          role: user.role 
+        }, 
+        token 
+      });
+    } catch (error) {
+      console.error("Registration error:", error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid data", errors: error.errors });
+      }
+      res.status(500).json({ message: "Registration failed" });
+    }
+  });
+
+  app.post('/api/auth/login', (req, res, next) => {
+    passport.authenticate('local', (err: any, user: any, info: any) => {
+      if (err) {
+        console.error("Login error:", err);
+        return res.status(500).json({ message: "Login failed" });
+      }
+      
+      if (!user) {
+        return res.status(401).json({ message: info?.message || 'Invalid credentials' });
+      }
+
+      // Generate token
+      const token = generateToken(user);
+      
+      // Store token in session
+      req.session.token = token;
+
+      res.json({ 
+        message: 'Login successful', 
+        user: { 
+          id: user.id, 
+          email: user.email, 
+          firstName: user.firstName, 
+          lastName: user.lastName,
+          role: user.role 
+        }, 
+        token 
+      });
+    })(req, res, next);
+  });
+
+  app.post('/api/auth/logout', (req, res) => {
+    req.session.destroy((err) => {
+      if (err) {
+        return res.status(500).json({ message: 'Logout failed' });
+      }
+      res.clearCookie('connect.sid');
+      res.json({ message: 'Logged out successfully' });
+    });
+  });
+
+  // Google OAuth routes
+  app.get('/api/auth/google', 
+    passport.authenticate('google', { scope: ['profile', 'email'] })
+  );
+
+  app.get('/api/auth/google/callback',
+    passport.authenticate('google', { failureRedirect: '/login' }),
+    (req: any, res) => {
+      // Generate token
+      const token = generateToken(req.user);
+      
+      // Store token in session
+      req.session.token = token;
+      
+      // Redirect to dashboard
+      res.redirect('/?auth=success');
+    }
+  );
+
+  // Get current user
+  app.get('/api/auth/user', requireAuth, async (req: any, res) => {
+    try {
+      const user = await storage.getUser(req.user.id);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      res.json({
+        id: user.id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        profileImageUrl: user.profileImageUrl,
+        role: user.role,
+        points: user.points,
+        level: user.level,
+        bio: user.bio,
+        country: user.country,
+        sdgAlignment: user.sdgAlignment,
+        createdAt: user.createdAt
+      });
     } catch (error) {
       console.error("Error fetching user:", error);
       res.status(500).json({ message: "Failed to fetch user" });
     }
   });
 
+  // Legacy routes for compatibility (remove these if not needed)
+  app.post('/api/login', (req, res) => {
+    res.status(410).json({ message: 'Please use /api/auth/login instead' });
+  });
+
+  app.post('/api/signup', (req, res) => {
+    res.status(410).json({ message: 'Please use /api/auth/register instead' });
+  });
+
   // Project routes
-  app.get('/api/projects', async (req: any, res) => {
+  app.get('/api/projects', requireAuth, async (req: any, res) => {
     try {
-      const userId = 'dev-user-123';
+      const userId = req.user.id;
       const projects = await storage.getProjects(userId);
       res.json(projects);
     } catch (error) {
@@ -90,7 +192,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/projects/:id', async (req, res) => {
+  app.get('/api/projects/:id', requireAuth, async (req, res) => {
       try {
       const project = await storage.getProject(req.params.id);
       if (!project) {
@@ -103,9 +205,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/projects', async (req: any, res) => {
+  app.post('/api/projects', requireAuth, async (req: any, res) => {
     try {
-      const userId = 'dev-user-123';
+      const userId = req.user.id;
       const projectData = insertProjectSchema.parse({ ...req.body, ownerId: userId });
       const project = await storage.createProject(projectData);
       
@@ -135,7 +237,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put('/api/projects/:id', async (req, res) => {
+  app.put('/api/projects/:id', requireAuth, async (req, res) => {
     try {
       const projectData = insertProjectSchema.partial().parse(req.body);
       const project = await storage.updateProject(req.params.id, projectData);
@@ -149,7 +251,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete('/api/projects/:id', async (req, res) => {
+  app.delete('/api/projects/:id', requireAuth, async (req, res) => {
     try {
       await storage.deleteProject(req.params.id);
       res.json({ message: "Project deleted successfully" });
@@ -160,7 +262,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Board routes
-  app.get('/api/projects/:projectId/boards', async (req, res) => {
+  app.get('/api/projects/:projectId/boards', requireAuth, async (req, res) => {
     try {
       const boards = await storage.getBoardsByProject(req.params.projectId);
       res.json(boards);
@@ -170,7 +272,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/projects/:projectId/boards', async (req, res) => {
+  app.post('/api/projects/:projectId/boards', requireAuth, async (req, res) => {
     try {
       const boardData = insertBoardSchema.parse({ ...req.body, projectId: req.params.projectId });
       const board = await storage.createBoard(boardData);
@@ -185,7 +287,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Task routes
-  app.get('/api/boards/:boardId/tasks', async (req, res) => {
+  app.get('/api/boards/:boardId/tasks', requireAuth, async (req, res) => {
     try {
       const tasks = await storage.getTasksByBoard(req.params.boardId);
       res.json(tasks);
@@ -195,9 +297,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/tasks/my-tasks', async (req: any, res) => {
+  app.get('/api/tasks/my-tasks', requireAuth, async (req: any, res) => {
     try {
-      const userId = 'dev-user-123';
+      const userId = req.user.id;
       const tasks = await storage.getTasksByUser(userId);
       res.json(tasks);
     } catch (error) {
@@ -206,9 +308,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/boards/:boardId/tasks', async (req: any, res) => {
+  app.post('/api/boards/:boardId/tasks', requireAuth, async (req: any, res) => {
     try {
-      const userId = 'dev-user-123';
+      const userId = req.user.id;
       const taskData = insertTaskSchema.parse({ 
         ...req.body, 
         boardId: req.params.boardId,
@@ -235,9 +337,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put('/api/tasks/:id', async (req: any, res) => {
+  app.put('/api/tasks/:id', requireAuth, async (req: any, res) => {
     try {
-      const userId = 'dev-user-123';
+      const userId = req.user.id;
       const taskData = insertTaskSchema.partial().parse(req.body);
       const oldTask = await storage.getTask(req.params.id);
       const task = await storage.updateTask(req.params.id, taskData);
@@ -270,7 +372,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete('/api/tasks/:id', async (req, res) => {
+  app.delete('/api/tasks/:id', requireAuth, async (req, res) => {
     try {
       await storage.deleteTask(req.params.id);
       res.json({ message: "Task deleted successfully" });
@@ -281,7 +383,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Badge routes
-  app.get('/api/badges', async (req, res) => {
+  app.get('/api/badges', requireAuth, async (req, res) => {
     try {
       const badges = await storage.getBadges();
       res.json(badges);
@@ -291,13 +393,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/badges', async (req: any, res) => {
+  app.post('/api/badges', requireAuth, requireRole(['admin', 'super_admin']), async (req: any, res) => {
     try {
-      const user = await storage.getUser('dev-user-123');
-      if (!user || !['admin', 'super_admin'].includes(user.role)) {
-        return res.status(403).json({ message: "Insufficient permissions" });
-      }
-
       const badgeData = insertBadgeSchema.parse(req.body);
       const badge = await storage.createBadge(badgeData);
       res.json(badge);
@@ -310,7 +407,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/users/:userId/badges', async (req, res) => {
+  app.get('/api/users/:userId/badges', requireAuth, async (req, res) => {
     try {
       const userBadges = await storage.getUserBadges(req.params.userId);
       res.json(userBadges);
@@ -320,13 +417,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/users/:userId/badges/:badgeId', async (req: any, res) => {
+  app.post('/api/users/:userId/badges/:badgeId', requireAuth, requireRole(['admin', 'super_admin']), async (req: any, res) => {
     try {
-      const user = await storage.getUser('dev-user-123');
-      if (!user || !['admin', 'super_admin'].includes(user.role)) {
-        return res.status(403).json({ message: "Insufficient permissions" });
-      }
-
       const userBadge = await storage.awardBadge(req.params.userId, req.params.badgeId);
       
       // Log activity
@@ -345,7 +437,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Project member routes
-  app.get('/api/projects/:projectId/members', async (req, res) => {
+  app.get('/api/projects/:projectId/members', requireAuth, async (req, res) => {
     try {
       const members = await storage.getProjectMembers(req.params.projectId);
       res.json(members);
@@ -356,7 +448,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Activity routes
-  app.get('/api/activities', async (req, res) => {
+  app.get('/api/activities', requireAuth, async (req, res) => {
     try {
       const projectId = req.query.projectId as string;
       const limit = req.query.limit ? parseInt(req.query.limit as string) : 50;
@@ -369,13 +461,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Admin routes
-  app.get('/api/admin/users', async (req: any, res) => {
+  app.get('/api/admin/users', requireAuth, requireRole(['admin', 'super_admin']), async (req: any, res) => {
     try {
-      const user = await storage.getUser('dev-user-123');
-      if (!user || !['admin', 'super_admin'].includes(user.role)) {
-        return res.status(403).json({ message: "Insufficient permissions" });
-      }
-
       const users = await storage.getAllUsers();
       res.json(users);
     } catch (error) {
@@ -384,13 +471,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put('/api/admin/users/:userId/role', async (req: any, res) => {
+  app.put('/api/admin/users/:userId/role', requireAuth, requireRole(['admin', 'super_admin']), async (req: any, res) => {
     try {
-      const user = await storage.getUser('dev-user-123');
-      if (!user || !['admin', 'super_admin'].includes(user.role)) {
-        return res.status(403).json({ message: "Insufficient permissions" });
-      }
-
       const { role } = req.body;
       const updatedUser = await storage.updateUserRole(req.params.userId, role);
       res.json(updatedUser);
@@ -401,7 +483,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Leaderboard routes
-  app.get('/api/leaderboard', async (req, res) => {
+  app.get('/api/leaderboard', requireAuth, async (req, res) => {
     try {
       const projectId = req.query.projectId as string;
       const limit = req.query.limit ? parseInt(req.query.limit as string) : 10;
@@ -416,7 +498,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Advanced Task Management Routes (Jira-like functionality)
 
   // Task Comments
-  app.get('/api/tasks/:taskId/comments', async (req, res) => {
+  app.get('/api/tasks/:taskId/comments', requireAuth, async (req, res) => {
     try {
       const comments = await storage.getTaskComments(req.params.taskId);
       res.json(comments);
@@ -426,9 +508,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/tasks/:taskId/comments', async (req: any, res) => {
+  app.post('/api/tasks/:taskId/comments', requireAuth, async (req: any, res) => {
     try {
-      const userId = 'dev-user-123';
+      const userId = req.user.id;
       const { content } = req.body;
       
       if (!content?.trim()) {
@@ -457,9 +539,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put('/api/comments/:id', async (req: any, res) => {
+  app.put('/api/comments/:id', requireAuth, async (req: any, res) => {
     try {
-      const userId = 'dev-user-123';
+      const userId = req.user.id;
       const { content } = req.body;
       const comment = await storage.getTaskComment(req.params.id);
       
@@ -479,9 +561,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete('/api/comments/:id', async (req: any, res) => {
+  app.delete('/api/comments/:id', requireAuth, async (req: any, res) => {
     try {
-      const userId = 'dev-user-123';
+      const userId = req.user.id;
       const comment = await storage.getTaskComment(req.params.id);
       
       if (!comment) {
@@ -501,9 +583,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Time Tracking
-  app.post('/api/tasks/:taskId/time-logs', async (req: any, res) => {
+  app.post('/api/tasks/:taskId/time-logs', requireAuth, async (req: any, res) => {
     try {
-      const userId = 'dev-user-123';
+      const userId = req.user.id;
       const { timeSpent, description, date } = req.body;
       
       if (!timeSpent || timeSpent <= 0) {
@@ -525,7 +607,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/tasks/:taskId/time-logs', async (req, res) => {
+  app.get('/api/tasks/:taskId/time-logs', requireAuth, async (req, res) => {
     try {
       const timeLogs = await storage.getTaskTimeLogs(req.params.taskId);
       res.json(timeLogs);
@@ -536,9 +618,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Task Assignment
-  app.put('/api/tasks/:id/assign', async (req: any, res) => {
+  app.put('/api/tasks/:id/assign', requireAuth, async (req: any, res) => {
     try {
-      const userId = 'dev-user-123';
+      const userId = req.user.id;
       const { assigneeId } = req.body;
       
       const task = await storage.updateTask(req.params.id, { assigneeId });
@@ -562,7 +644,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Advanced Search and Filtering
-  app.get('/api/tasks/search', async (req: any, res) => {
+  app.get('/api/tasks/search', requireAuth, async (req: any, res) => {
     try {
       const {
         query,
@@ -596,9 +678,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Task Status Transitions
-  app.put('/api/tasks/:id/transition', async (req: any, res) => {
+  app.put('/api/tasks/:id/transition', requireAuth, async (req: any, res) => {
     try {
-      const userId = 'dev-user-123';
+      const userId = req.user.id;
       const { status, comment } = req.body;
       
       const oldTask = await storage.getTask(req.params.id);
@@ -642,14 +724,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Task Labels/Tags
-  app.put('/api/tasks/:id/labels', async (req: any, res) => {
+  app.put('/api/tasks/:id/labels', requireAuth, async (req: any, res) => {
     try {
+      const userId = req.user.id;
       const { labels } = req.body;
       const task = await storage.updateTask(req.params.id, { labels });
       
       // Log activity
       await storage.createActivity({
-        userId: 'dev-user-123',
+        userId,
         type: 'labels_updated',
         description: `Updated task labels`,
         taskId: task.id,
@@ -664,16 +747,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Task Dependencies
-  app.post('/api/tasks/:id/dependencies', async (req: any, res) => {
+  app.post('/api/tasks/:id/dependencies', requireAuth, async (req: any, res) => {
     try {
-      const userId = 'dev-user-123';
+      const userId = req.user.id;
       const { dependsOnTaskId } = req.body;
       
       if (!dependsOnTaskId) {
         return res.status(400).json({ message: "Dependency task ID is required" });
       }
       
-      // First update our dependency creation to include userId
       const dependency = await storage.createTaskDependency({
         taskId: req.params.id,
         dependsOnTaskId
@@ -686,7 +768,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/tasks/:id/dependencies', async (req, res) => {
+  app.get('/api/tasks/:id/dependencies', requireAuth, async (req, res) => {
     try {
       const dependencies = await storage.getTaskDependencies(req.params.id);
       res.json(dependencies);
@@ -697,7 +779,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get single task with full details
-  app.get('/api/tasks/:id', async (req, res) => {
+  app.get('/api/tasks/:id', requireAuth, async (req, res) => {
     try {
       const task = await storage.getTask(req.params.id);
       if (!task) {
