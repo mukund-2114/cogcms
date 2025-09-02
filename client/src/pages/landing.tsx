@@ -28,7 +28,7 @@ export default function Landing() {
             <Button 
               size="lg" 
               className="bg-white text-hero-blue hover:bg-gray-100 text-lg px-8 py-6"
-              onClick={() => window.location.href = "/api/login"}
+              onClick={() => window.location.href = "/login"}
               data-testid="button-login"
             >
               <ArrowRight className="mr-2 h-5 w-5" />
@@ -40,6 +40,7 @@ export default function Landing() {
               variant="outline" 
               className="border-white text-white hover:bg-white hover:text-hero-blue text-lg px-8 py-6"
               data-testid="button-learn-more"
+              onClick={() => window.location.href = "/signup"}
             >
               Learn More
             </Button>
@@ -120,7 +121,7 @@ export default function Landing() {
           <Button 
             size="lg" 
             className="bg-hero-gold hover:bg-hero-gold/90 text-white text-xl px-12 py-6"
-            onClick={() => window.location.href = "/api/login"}
+            onClick={() => window.location.href = "/login"}
             data-testid="button-get-started"
           >
             Get Started Today

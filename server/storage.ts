@@ -420,7 +420,7 @@ export class DatabaseStorage implements IStorage {
   async updateTaskComment(id: string, comment: { content: string }): Promise<TaskComment> {
     const [updatedComment] = await db
       .update(taskComments)
-      .set({ content: comment.content, updatedAt: new Date() })
+      .set({ content: comment.content, updatedAt  : new Date() })
       .where(eq(taskComments.id, id))
       .returning();
     return updatedComment;

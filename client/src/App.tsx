@@ -10,6 +10,8 @@ import Dashboard from "@/pages/dashboard";
 import Projects from "@/pages/projects";
 import AdminUsers from "@/pages/admin/users";
 import AdminBadges from "@/pages/admin/badges";
+import Login from "@/pages/login";
+import Signup from "@/pages/signup";
 
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -17,7 +19,11 @@ function Router() {
   return (
     <Switch>
       {isLoading || !isAuthenticated ? (
-        <Route path="/" component={Landing} />
+        <>
+          <Route path="/" component={Landing} />
+          <Route path="/login" component={Login} />
+          <Route path="/signup" component={Signup} />
+        </>
       ) : (
         <>
           <Route path="/" component={Dashboard} />
