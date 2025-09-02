@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { getQueryFn } from "@/lib/queryClient";
 
 export function useAuth() {
-  const { data: user, isLoading } = useQuery({
+  const { data: user, isLoading, error } = useQuery({
     queryKey: ["/api/auth/user"],
     retry: false,
     queryFn: getQueryFn({ on401: "returnNull" }),
@@ -11,6 +11,6 @@ export function useAuth() {
   return {
     user,
     isLoading,
-    isAuthenticated: true, // Always return true to bypass auth
+    isAuthenticated: !!user && !error,
   };
 }
